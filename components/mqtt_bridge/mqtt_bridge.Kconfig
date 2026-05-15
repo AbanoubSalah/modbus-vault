@@ -1,0 +1,19 @@
+menu "MQTT Client Configuration"
+
+    config MQTT_URI
+        string "MQTT URI"
+        default "mqtts://broker.example.com:8883"
+
+    config MQTT_USER
+        string "MQTT User"
+        default "SET_AT_BUILD_TIME"
+
+    config MQTT_PASSWORD
+        string "MQTT Password"
+        default ""
+
+    config MQTT_DEVICE_ID
+        string "MQTT Device ID"
+        default "device-001"
+
+endmenu

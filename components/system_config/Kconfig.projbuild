@@ -1,0 +1,15 @@
+menu "Modbus Vault Settings"
+    orsource "../rs485_driver/rs485_driver.Kconfig"
+    orsource "../blackbox_logger/blackbox_logger.Kconfig"
+    orsource "../mqtt_bridge/mqtt_bridge.Kconfig"
+    orsource "../wifi_manager/wifi_manager.Kconfig"
+    orsource "../utils/utils.Kconfig"
+    orsource "../debug_pins/debug_pins.Kconfig"
+
+    config SYSTEM_CONFIG_SAVE_PERIOD
+        int "Configuration saving period in micro seconds"
+        default 30000000
+        help
+            Settings are saved periodically with period of
+            this value in micro seconds.
+endmenu

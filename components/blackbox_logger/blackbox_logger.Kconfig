@@ -1,0 +1,36 @@
+menu "Blackbox Logger Configuration"
+
+    config ENABLE_BLACKBOX_LOGGER_WRITING_OVER_OLD_ENTRIES
+        bool "Enable Writing Over Old Entries"
+        default y
+        help
+            Enables writing new entries over old ones that wasn't sent
+
+    config BLACKBOX_LOGGER_FLUSH_TIMEOUT
+        int "Flush Timer Timeout (uSeconds)"
+        default 5000000
+        help
+            The timeout in uSec for time triggered flush.
+    config BLACKBOX_LOGGER_SECTOR_SIZE
+        int "Flash Sector Size (Bytes)"
+        default 4096
+        help
+            The physical sector size of the NOR flash.
+            Standard is 4096 for ESP32.
+
+    config BLACKBOX_LOGGER_BATCH_SIZE
+        int "Write Batch Buffer Size (Bytes)"
+        default 1024
+        range 256 4096
+        help
+            Size of the RAM buffer used to collect log entries
+            before flushing to flash
+
+    config BLACKBOX_LOGGER_ALIGNMENT
+        int "Memory Alignment (Bytes)"
+        default 4
+        range 4 16
+        help
+            Ensures headers start on a 4-byte boundary for
+            optimal CPU access.
+endmenu

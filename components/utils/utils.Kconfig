@@ -1,0 +1,9 @@
+menu "Utilities Configuration"
+
+    config ENABLE_MODBUS_CRC16_LUT
+        bool "Enable Modbus CRC16 Using LUT"
+        default y
+        help
+            Enables toggling of LUT calculation instead of math intensive calculations
+
+endmenu

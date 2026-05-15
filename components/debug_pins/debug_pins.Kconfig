@@ -1,0 +1,7 @@
+menu "Debug Configuration"
+    config DEBUG_PINS_ENABLE
+        bool "Enable Hardware Debug Pins"
+        default n
+        help
+            Enables toggling of GPIOs for logic analyzer debugging.
+endmenu

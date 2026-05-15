@@ -1,0 +1,31 @@
+/**
+ * @defgroup logger_module Logging
+ * @brief The main module for logging
+ *
+ * @defgroup modbus_analyzer_module Modbus Analyzer
+ * @brief The main module for providing Modbus frames
+ *
+ * @defgroup telemetry_module Telemetry
+ * @brief The main module for telemetry
+ *
+ * @defgroup nvs_manager_module NVS Manager
+ * @brief The main module for managing NVS
+ *
+ * @defgroup rs485_driver_module RS485 Driver
+ * @brief The main module for managing UART
+ *
+ * @defgroup controller_module System Controller
+ * @brief The main module for providing system management
+ *
+ * @defgroup wifi_manager_module WiFi Manager
+ * @brief The main module for providing WiFi access
+ *
+ * @defgroup utilities_module Utilities
+ * @brief The main module for providing different utility functionality
+ *
+ *@defgroup debug_module Debugging
+ * @brief The main module for providing pin toggling debugging functionality
+ *
+ *@defgroup main_module Main
+ * @brief The main module for the project
+ */

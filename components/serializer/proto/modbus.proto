@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message ModbusFrame {
+  uint64 timestamp_us  = 1;
+  bytes  data          = 2;
+  uint32 slave_address = 3;
+  uint32 function_code = 4;
+}

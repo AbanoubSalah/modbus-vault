@@ -1,0 +1,46 @@
+menu "RS484 Driver Configuration"
+
+    config RS484_DRIVER_UART_PORT
+        int "UART Port Number"
+        range 0 2
+        default 1
+        help
+            UART port to use
+            Note: port0 typically used for logging
+
+    config RS484_DRIVER_UART_BAUDRATE
+        int "UART Baud Rate"
+        default 115200
+        help
+            UART baudrate
+
+    config RS484_DRIVER_UART_RX_PIN
+        int "UART RX GPIO"
+        default 5
+        help
+            UART receive pin
+
+    config RS484_DRIVER_UART_DATA_BITS
+        int "Number of Data Bits"
+        range 5 8
+        default 8
+        help
+            Modbus typical RTU message is 8-bits (a byte)
+
+    config RS484_DRIVER_UART_PARITY
+        int "Modbus Parity (0:None, 1:Even, 2:Odd)"
+        range 0 2
+        default 1  # Modbus standard defaults to Even
+        help
+            Standard Modbus RTU requires 11-bits per character. 
+            If Parity is None, 2 Stop bits are typically used.
+
+    config RS484_DRIVER_UART_STOP_BIT
+        int "Modbus Stop Bit (1:one, 2:two)"
+        range 1 2
+        default 1  # Since Parity defaults to even parity
+        help
+            Standard Modbus RTU requires 11-bits per character. 
+            If Parity is None, 2 Stop bits are typically used.
+
+endmenu

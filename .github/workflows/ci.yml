@@ -1,0 +1,64 @@
+name: Build and Test Firmware (ESP-IDF)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v6.0
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y protobuf-c-compiler
+
+      - name: Build Main Project
+        run: |
+          . $IDF_PATH/export.sh
+          $IDF_PATH/install.sh esp32s3
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Run Unit Tests in QEMU
+        id: run_tests
+        run: |
+          . $IDF_PATH/export.sh
+          python $IDF_PATH/tools/idf_tools.py install qemu-xtensa qemu-riscv32
+          cd test_modbus_vault
+          idf.py set-target esp32s3
+          idf.py build
+          
+          # Use 'timeout' to prevent the job from hanging forever if QEMU stalls
+          # 'unbuffer' (from expect package) helps keep output real-time, 
+          # but idf.py qemu usually handles this.
+          timeout --signal=SIGINT 20s stdbuf -oL -eL idf.py qemu > ../test_results.log 2>&1 || true
+
+          cd ..
+          echo "--- TEST OUTPUT ---"
+          cat test_results.log
+
+          if grep -q "0 Failures" test_results.log; then
+            echo "Success: All tests passed."
+          else
+            echo "Error: Tests failed or grep pattern not found."
+            exit 1
+          fi
+
+      - name: Upload Test Logs
+        if: always() # Upload logs even if the tests failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-test-results
+          path: test_results.log

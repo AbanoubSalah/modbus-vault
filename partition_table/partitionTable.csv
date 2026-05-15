@@ -1,0 +1,15 @@
+﻿# Name,     Type, SubType,     Offset, Size,     Flags
+# System & Config (4K Aligned)
+nvs,        data,     nvs,     0x9000, 144K,
+otadata,    data,     ota,           ,   8K,
+phy_init,   data,     phy,           ,   4K,
+
+# Application Slots (64K Aligned for MMU)
+factory,     app,  factory,   0x30000,   2M,
+ota_0,       app,    ota_0,          ,   2M,
+ota_1,       app,    ota_1,          ,   2M,
+
+# The Blackbox (64K Aligned) large circular buffer
+# sized to leave 1856KB free at the end for future
+# firmware expansion
+log_storage,data,     0x40,          ,   8M,
