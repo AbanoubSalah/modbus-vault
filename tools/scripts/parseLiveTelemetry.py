@@ -8,7 +8,9 @@ Dependencies:  modbus_pipeline, paho-mqtt
 License:       MIT
 """
 
+import os
 import argparse
+import ssl
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import CallbackAPIVersion
 import struct
@@ -60,6 +62,10 @@ def on_message(client, userdata, msg):
 
 def main():
     parser = argparse.ArgumentParser(description="Bridge Live Parser")
+    parser.add_argument("--secure", action="store_true", help="Secure connection")
+    parser.add_argument("--cert", default = "certs/client.crt", type=str, help="Client certificate")
+    parser.add_argument("--key", default = "certs/client.key", type=str, help="Client key")
+    parser.add_argument("--cafile", default = "certs/ca.crt", type=str, help="CA certificate")
     parser.add_argument("--port", type=int, default=1883, help="Broker port")
     parser.add_argument("--address", type=str, default="localhost", help="Broker address")
 
@@ -68,6 +74,20 @@ def main():
     # Initialize the MQTT Client with v2 API
     client = mqtt.Client(CallbackAPIVersion.VERSION2)
 
+    # Configure mTLS
+    if args.secure:
+        try:
+            client.tls_set(
+                ca_certs = args.cafile,
+                certfile = args.cert,
+                keyfile = args.key,
+                tls_version=ssl.PROTOCOL_TLSv1_2
+                )
+        except FileNotFoundError as e:
+            print("Certificate/Key not found")
+        except Exception as e:
+            print(f"Client configuration error: {e}")
+
     # Assign the callback functions
     client.on_connect = on_connect
     client.on_message = on_message
@@ -75,7 +95,12 @@ def main():
     # Connect to broker (running locally on the default port 1883)
     broker_address = args.address
     port = args.port
-    client.connect(broker_address, port, keepalive=60)
+
+    try:
+        client.connect(broker_address, port, keepalive=60)
+    except Exception as e:
+        print(f"Connection error: {e}")
+        exit(-1)
 
     # Blocking call that processes network traffic, dispatches callbacks, and handles reconnecting.
     try:

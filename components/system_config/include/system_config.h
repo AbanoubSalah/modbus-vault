@@ -25,14 +25,20 @@
 #define RS485_DRIVER_RX_BUFFER_SIZE (2048U) /**< UART receive buffer size */
 #define RS485_DRIVER_RX_QUEUE_SIZE  (20U)   /**< UART receive queue size */
 
-#define SYSTEM_CONFIG_WIFI_SSID                (CONFIG_WIFI_SSID)     /**< WiFi SSID */
-#define SYSTEM_CONFIG_WIFI_PASSWORD            (CONFIG_WIFI_PASSWORD) /**< WiFi password */
-#define SYSTEM_CONFIG_MQTT_URI                 (CONFIG_MQTT_URI)      /**< MQTT URI */
-#define SYSTEM_CONFIG_MQTT_USER                (CONFIG_MQTT_USER)     /**< MQTT user */
-#define SYSTEM_CONFIG_MQTT_PASSWORD            (CONFIG_MQTT_PASSWORD) /**< MQTT password */
-#define SYSTEM_CONFIG_NVS_PARTITION_NAME       ("nvs")                /**< NVS partitions name */
-#define SYSTEM_CONFIG_LOGGER_PARTITION_NAME    ("log_storage")        /**< Logger partitions name */
-#define SYSTEM_CONFIG_LOGGER_PARTITION_SUBTYPE (0x40)                 /**< Logger partitions subtype */
+#define SYSTEM_CONFIG_WIFI_SSID     (CONFIG_WIFI_SSID)     /**< WiFi SSID */
+#define SYSTEM_CONFIG_WIFI_PASSWORD (CONFIG_WIFI_PASSWORD) /**< WiFi password */
+#define SYSTEM_CONFIG_MQTT_URI      (CONFIG_MQTT_URI)      /**< MQTT URI */
+#define SYSTEM_CONFIG_MQTT_USER     (CONFIG_MQTT_USER)     /**< MQTT user */
+#define SYSTEM_CONFIG_MQTT_PASSWORD (CONFIG_MQTT_PASSWORD) /**< MQTT password */
+
+#define SYSTEM_CONFIG_NVS_PARTITION_NAME       ("nvs")         /**< NVS partitions name */
+#define SYSTEM_CONFIG_LOGGER_PARTITION_NAME    ("log_storage") /**< Logger partitions name */
+#define SYSTEM_CONFIG_LOGGER_PARTITION_SUBTYPE (0x40)          /**< Logger partitions subtype */
+#define SYSTEM_CONFIG_CERTS_PARTITION_LABEL    ("certs")       /**< Certificates partitions name */
+#define SYSTEM_CONFIG_CERTS_PARTITION_SUBTYPE  (0x41)          /**< Certificates partitions subtype */
+#define SYSTEM_CONFIG_MTLS_HEADER_MAGIC                                                                      \
+    (0x43455254UL) /**< Magic header for certificates partition 'CERT'                                       \
+                    */
 
 #define BLACKBOX_LOGGER_DISK_FLUSH_TIMEOUT_US                                                                \
     (CONFIG_BLACKBOX_LOGGER_FLUSH_TIMEOUT) /**< Logger flush timeout in micro seconds */

@@ -5,6 +5,8 @@ __pycache__/
 sdkconfig
 sdkconfig.old
 *.pem
+*.crt
+*.key
 *.log
 *.bin
 *.pyc
