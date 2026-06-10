@@ -5,7 +5,7 @@
  *
  * @details
  * - Uses a static pool of slabs
- * - Manage available slaps using singly linked list with a lock for mutual access
+ * - Manage available slabs using singly linked list with a lock for mutual access
  * - On slab alloc returns list head if available
  * - On slab free make the returned slab the new head
  */
