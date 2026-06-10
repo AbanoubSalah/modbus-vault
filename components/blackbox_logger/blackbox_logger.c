@@ -1,6 +1,7 @@
 /**
  * @file blackbox_logger.c
  * @ingroup logger_module
+ * @author Abanoub Salah
  * @brief Implementation of the blackbox logger
  *
  * @details
