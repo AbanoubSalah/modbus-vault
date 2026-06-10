@@ -272,6 +272,12 @@ bool telemetry_service_init (mqtt_bridge_config_t *mqtt_bridge_config_ptr, bool 
 
     if (is_init == true)
     {
+        telemetry_service_state_lock = xSemaphoreCreateMutex ();
+        is_init                      = (telemetry_service_state_lock != NULL);
+    }
+
+    if (is_init == true)
+    {
         publish_replay_cb_func            = replay_check_cb;
         mqtt_bridge_config_ptr->notify_cb = telemetry_service_set_online;
         is_init = (mqtt_bridge_init (&mqtt_bridge, mqtt_bridge_config_ptr) == ESP_OK);
@@ -281,12 +287,6 @@ bool telemetry_service_init (mqtt_bridge_config_t *mqtt_bridge_config_ptr, bool 
     {
         live_queue = xQueueCreate (TELEMETRY_SERVICE_LIVE_QUEUE_LENGTH, sizeof (telemetry_pipeline_record_t));
         is_init    = (live_queue != NULL);
-    }
-
-    if (is_init == true)
-    {
-        telemetry_service_state_lock = xSemaphoreCreateMutex ();
-        is_init                      = (telemetry_service_state_lock != NULL);
     }
 
     if (is_init == true)
@@ -350,7 +350,8 @@ void telemetry_service_notify_replay_available (void)
 
 void telemetry_service_set_online (bool online)
 {
-    if (xSemaphoreTake (telemetry_service_state_lock, 0) == pdPASS)
+    if ((telemetry_service_state_lock != NULL) &&
+        (xSemaphoreTake (telemetry_service_state_lock, 0) == pdPASS))
     {
         telemetry_service_is_online_flag = online;
         (void) xSemaphoreGive (telemetry_service_state_lock);
@@ -365,7 +366,8 @@ void telemetry_service_set_online (bool online)
 bool telemetry_service_is_online (void)
 {
     bool is_online = false;
-    if (xSemaphoreTake (telemetry_service_state_lock, 0) == pdPASS)
+    if ((telemetry_service_state_lock != NULL) &&
+        (xSemaphoreTake (telemetry_service_state_lock, 0) == pdPASS))
     {
         is_online = telemetry_service_is_online_flag;
         (void) xSemaphoreGive (telemetry_service_state_lock);
