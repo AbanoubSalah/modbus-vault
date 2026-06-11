@@ -1,8 +1,17 @@
 menu "MQTT Client Configuration"
 
+    config MQTT_TRANSPORT_SECURE
+        bool "Enable mTLS Security"
+        default n
+        help
+            Enables connection over mutual TLS.
+
     config MQTT_URI
         string "MQTT URI"
-        default "mqtts://broker.example.com:8883"
+        default "mqtts://broker.example.com:8883" if MQTT_TRANSPORT_SECURE
+        default "mqtt://broker.example.com:1883" if !MQTT_TRANSPORT_SECURE
+        help
+            The target broker endpoint connection string prefix.
 
     config MQTT_USER
         string "MQTT User"

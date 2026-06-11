@@ -6,6 +6,32 @@ menu "Modbus Vault Settings"
     orsource "../utils/utils.Kconfig"
     orsource "../debug_pins/debug_pins.Kconfig"
 
+    choice SYSTEM_CONFIG_PROV_SEC_VER
+        prompt "Protocomm Security Version"
+        default SYSTEM_CONFIG_PROV_SEC_VER_1
+        depends on WIFI_MODE_USE_BLE_PROVISIONING
+        help
+            Security version used for provisioning.
+
+        config SYSTEM_CONFIG_PROV_SEC_VER_1
+            bool "Version 1"
+    endchoice
+
+    config SYSTEM_CONFIG_PROV_POP
+        string "Provisioning Proof of Possession (PoP)"
+        depends on SYSTEM_CONFIG_PROV_SEC_VER_1
+        default "ModbusVault!"
+        help
+            POP required by the mobile app/provisioning tool.
+
+    config SYSTEM_CONFIG_BLE_DEVICE_NAME
+        string "BLE Provisioning Device Name"
+        depends on WIFI_MODE_USE_BLE_PROVISIONING
+        default "PROV_ESP32S3"
+        help
+            Broadcast name that the provisioning app will
+            look for during Wi-Fi onboarding.
+
     config SYSTEM_CONFIG_SAVE_PERIOD
         int "Configuration saving period in micro seconds"
         default 30000000

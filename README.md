@@ -360,6 +360,173 @@ with previously captured logs. Future schema evolution should use
 additive changes where possible and reserve deprecated field IDs.
 
 
+## Security & Network Provisioning
+### Unified Provisioning Flow (BLE)
+
+On clean installations, or when NVS values return empty string sentinels, the firmware boots into provisioning mode:
+
+* Uses ESP-IDF's *network_provisioning* and *protocomm* components over Bluetooth Low Energy.
+* Uses protocomm sec1 to exchange credentials without plaintext exposure.
+* Once the client app commits valid network configurations, save the state, updates NVS, and executes an automated system reboot `esp_restart()`.
+
+*Espressif's Android app "com.espressif.provble" was used during development & testing.*
+
+#### Protocomm Schemas Choice
+
+During the architectural design phase, both Security 1 and Security 2 schemes were evaluated:
+
+* *Security 2 (SRP6a):* While it is the most secure choice, it requires off-chip pre-calculation of a unique salt/verifier. This architecture was deferred to keep the development scope focused on core real-time telemetry pipelines.
+* *Security 1 (Curve25519 + AES-CTR):* Selected as the optimal choice for this deployment. It utilizes an *X25519 key exchange* to establish a secure session key over the air, combined with a *Proof of Possession (PoP)* string as a pre-shared secret for authentication.
+
+### MQTT Credential Provisioning
+
+MQTT mTLS credentials are handled separately from standard variable structures to prevent heap fragmentation and safely managed inside a custom *certs* partition:
+
+* Memory-Mapped: High-speed, read-only mapping directly via MMU `esp_partition_mmap`.
+* Certificates/key Partition Layout:
+  * Certificates/Key (payload) are serialized, each null-terminated to be parsed correctly by MQTT stack as standard string.
+  * Serialized payload are encased between a header and a Modbus CRC16. CRC is calculated across the entire block (padded-header + payload + alignment-padding) for data integrity.
+  * Header is padded to 32 Bytes and the whole structure is padded to 32 Bytes to satisfy Flash encryption requirement.
+  * Since *MMU* requires 64KB addressable memory (pages) the partition start offset must be aligned to 64KB.
+
+<table style="width: 100%;">
+    <caption style="font-weight: bold; font-size: 1.2em; margin-bottom: 8px;">
+      Header Structure
+  </caption>
+  <thead>
+    <tr>
+      <th rowspan="2" style="text-align: center;">magic</th>
+      <th colspan="2" style="text-align: center;">client certificate</th>
+      <th colspan="2" style="text-align: center;">client key</th>
+      <th colspan="2" style="text-align: center;">CA</th>
+      <th rowspan="2" style="text-align: center;">padding</th>
+    </tr>
+    <tr>
+      <th style="text-align: center;">offset</th>
+      <th style="text-align: center;">len</th>
+      <th style="text-align: center;">offset</th>
+      <th style="text-align: center;">len</th>
+      <th style="text-align: center;">offset</th>
+      <th style="text-align: center;">len</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+      <td style="text-align: center;">32-bits</td>
+    </tr>
+  <tr>
+    <td colspan=8 style="text-align: center;"><strong>32 Bytes</strong></td>
+  </tr>
+  </tbody>
+</table>
+
+<table style="width: 100%;">
+  <caption style="font-weight: bold; font-size: 1.2em; margin-bottom: 8px;">
+    Partition Layout
+  </caption>
+  <thead>
+    <tr>
+      <th style="text-align: center;">padded-header</th>
+      <th style="text-align: center;">client-certificate</th>
+      <th style="text-align: center;">client-key</th>
+      <th style="text-align: center;">CA-certificate</th>
+      <th style="text-align: center;">padding</th>
+      <th style="text-align: center;">modbus-crc-16</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2" style="text-align: center; vertical-align: middle;">32 Bytes</td>
+      <td style="text-align: center;">data</td>
+      <td style="text-align: center;">data</td>
+      <td style="text-align: center;">data</td>
+      <td rowspan="2" style="text-align: center; vertical-align: middle;">0 to 31 Bytes</td>
+      <td style="text-align: center;">2 Bytes</td>
+    </tr>
+    <tr>
+      <!-- Note: padded-header is skipped here because of rowspan -->
+      <td style="text-align: center;">(Nul-terminated)</td>
+      <td style="text-align: center;">(Nul-terminated)</td>
+      <td style="text-align: center;">(Nul-terminated)</td>
+      <!-- Note: padding is skipped here because of rowspan -->
+      <td style="text-align: center;">32B Aligned</td>
+    </tr>
+  <tr>
+    <td colspan=8 style="text-align: center;"><strong>Multiple Of 32 Bytes</strong></td>
+  </tr>
+  </tbody>
+</table>
+
+
+*`openssl` was used to generate certificates/keys for testing*
+
+### Certificates/Key Provisioning
+
+A python script `tools/scripts/provisionDevice.py` was developed to pack them into a binary and uses `esptool` to flash the binary depending on flags:
+
+* *Development Mode `--mode plain`:* Pass unencrypted data directly.
+* *Production Mode `--mode device-encrypted`:* Pass unencrypted data to *esptool* that uses the configured pre-fused chip HW to encrypt data to flash.
+* *Host-Side Mode `--mode host-encrypted`:* Uses a local key and *espsecure* to pre-encrypt data before sending it.
+
+### Provisioning Security Configuration
+
+By default, this repository builds with an unencrypted, insecure configuration so it runs out-of-the-box on standard hardware. To enable *BLE Provisioning* and *MQTT over mTLS*, you will need to enable these features manually via the ESP-IDF configuration menu.
+
+#### Open the Configuration Menu
+
+Run project configuration:
+
+```bash
+idf.py menuconfig
+
+```
+
+#### Configure BLE Provisioning
+
+* Navigate to **Modbus Vault Settings** -> Select **Network Configuration**.
+* Under **Wi-Fi Credential Source Mode**, select **BLE Provisioning**.
+* Navigate to **Component config** -> **Protocomm**.
+* Ensure that **Security 1** is checked.
+* [Optional] Choose **NimBLE** stack. As it is lighter and has smaller footprint.
+
+#### Configure MQTT Over MTLS
+
+* Navigate to **Modbus Vault Settings** -> **MQTT Client Configuration**.
+* Ensure **Enable mTLS Security** is enabled.
+* Make sure MQTT URI matches your broker's `mqtts://host:8883`
+
+#### Save And Build
+
+Press `s` to save your changes to your local `sdkconfig`, press `q` to exit, and then build normally:
+
+```bash
+idf.py build flash monitor
+
+```
+
+### Production Considerations
+
+⚠️ **WARNING:** Enabling Flash Encryption permanently modifies the chip's eFuses. Misconfiguration can permanently lock or brick your development board.
+
+To protect your provisioned WiFi/MQTT credentials from physical data extraction, it is highly recommended to enable <u>Flash Encryption</u> and <u>Encrypted NVS</u> on production/release.
+
+Ensure you test thoroughly in development mode before freezing eFuses for Production/Release mode!
+
+To safely configure hardware security, always follow the official Espressif documentation
+
+### Reference Links
+* [ESP-IDF Unified Provisioning](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32s3/api-reference/provisioning/provisioning.html)
+* [Espressif Official Documentation: Flash Encryption](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32s3/security/flash-encryption.html)
+* [Espressif Official Documentation: NVS Encryption](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32s3/api-reference/storage/nvs_encryption.html)
+
+
 ## Hardware
 ### Circuit Design
 

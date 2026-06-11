@@ -7,7 +7,7 @@ IMAGE_PATH             = docs/images
 # Input Settings
 INPUT                     = main components README.md modules.dox test_modbus_vault
 RECURSIVE                 = YES
-EXCLUDE                   = build managed_components test_modbus_vault/build
+EXCLUDE                   = build managed_components test_modbus_vault/build test_modbus_vault/managed_components
 MARKDOWN_SUPPORT          = YES
 AUTOLINK_SUPPORT          = YES
 USE_MDFILE_AS_MAINPAGE    = README.md

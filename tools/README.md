@@ -44,4 +44,5 @@ for entry in parser:
 | `generateSampleLogFile.py` | Generates a test `.bin` file with random sample frames |
 | `parseLiveTelemetry.py`    | Reads live events over MQTT and parses them            |
 | `parseLogFromFile.py`      | Parse Blackbox Logger binary dump                      |
+| `provisionDevice.py`       | Flash mTLS certificates/key                            |
 | `sendModbusTransactions.py`| Transmit Modbus transactions over a serial port        |

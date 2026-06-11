@@ -1,18 +1,38 @@
 menu "Network Configuration"
 
+    choice WIFI_INITIALIZATION_MODE
+        prompt "Wi-Fi Credential Source Mode"
+        default WIFI_MODE_USE_MANUAL_SETTING
+        help
+            Select how the device acquires its WiFi credentials on first boot.
+
+        config WIFI_MODE_USE_BLE_PROVISIONING
+            bool "BLE Provisioning"
+            help
+                Device boots up and awaits Wi-Fi credentials via Bluetooth Low Energy.
+                Initial config strings will be ignored on fresh boot.
+
+        config WIFI_MODE_USE_MANUAL_SETTING
+            bool "Manual Compile-Time Settings"
+            help
+                Device connects using the hardcoded credentials below.
+    endchoice
+
     config WIFI_SSID
         string "WiFi SSID"
+        depends on WIFI_MODE_USE_MANUAL_SETTING
         default "SET_AT_BUILD_TIME"
 
     config WIFI_PASSWORD
         string "WiFi Password"
+        depends on WIFI_MODE_USE_MANUAL_SETTING
         default ""
 
     config WIFI_AUTH_THRESHOLD
         bool "Set minimum WiFi Security Threshold"
         default y
         help
-            If enabled, the device will refuse to connect to networks 
+            If enabled, the device will refuse to connect to networks
             with security weaker than the selected level.
 
     config WIFI_AUTH_MODE
@@ -21,7 +41,7 @@ menu "Network Configuration"
         default 3
         range 0 9
         help
-            0: Open, 1: WEP, 2: WPA_PSK, 3: WPA2_PSK, 4: WPA_WPA2_PSK, 
+            0: Open, 1: WEP, 2: WPA_PSK, 3: WPA2_PSK, 4: WPA_WPA2_PSK,
             5: WPA2_ENTERPRISE, 6: WPA3_PSK, 7: WPA2_WPA3_PSK, 8: WAPI
 
 endmenu

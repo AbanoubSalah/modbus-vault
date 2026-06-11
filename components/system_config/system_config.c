@@ -15,12 +15,16 @@
  * - Provides helper function(s) needed by the system to work
  *     - Save parameters of logger to NVS
  */
-
-#include "esp_heap_caps.h"
+#include "esp_partition.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "system_config_internal.h"
+#include "utils.h"
 #include "wifi_manager.h"
+
+#ifdef CONFIG_WIFI_MODE_USE_BLE_PROVISIONING
+#include "ble_provisioner.h"
+#endif
 
 #include <string.h>
 
@@ -71,6 +75,129 @@ static system_config_t global_config = {
                      .read_func              = esp_partition_read,
                      .erase_func             = esp_partition_erase_range}};
 
+#if CONFIG_MQTT_TRANSPORT_SECURE
+/**
+ * @brief MQTT certificates/key header structure
+ */
+typedef struct {
+    uint32_t magic;      /**< Header magic */
+    uint32_t cli_offset; /**< Client's certificate offset */
+    uint32_t cli_length; /**< Client's certificate length */
+    uint32_t key_offset; /**< Client's key offset */
+    uint32_t key_length; /**< Client's key length */
+    uint32_t ca_offset;  /**< CA's offset */
+    uint32_t ca_length;  /**< CA's length */
+    uint32_t padding;    /** Padding to 32 bytes */
+} cert_header_t;
+_Static_assert (sizeof (cert_header_t) == 32,
+                "cert_header_t layout must be exactly 32 bytes for 'Flash Encryption' alignment");
+
+/** MM tracking handle to unmap if needed */
+static esp_partition_mmap_handle_t certs_map_handle = 0;
+
+/**
+ * @brief Load MQTT certificates from partition using 'memory map'
+ *
+ * @return esp_err_t Load result
+ * @retval ESP_OK Load success
+ * @retval ESP_ERR_NOT_FOUND Partition not found
+ * @retval ESP_ERR_INVALID_STATE Possible double call or corrupt partition
+ * @retval ESP_ERR_INVALID_CRC CRC mismatch
+ * @retval Any other error from memory mapping API
+ */
+static esp_err_t system_config_load_mqtt_certs (void)
+{
+    esp_err_t err = ESP_OK;
+
+    if (certs_map_handle != 0)
+    {
+        err = ESP_ERR_INVALID_STATE;
+    }
+
+    const esp_partition_t *partition_ptr = NULL;
+    if (err == ESP_OK)
+    {
+        // Locate certs' custom partition by name
+        partition_ptr =
+            esp_partition_find_first (ESP_PARTITION_TYPE_DATA, SYSTEM_CONFIG_CERTS_PARTITION_SUBTYPE,
+                                      SYSTEM_CONFIG_CERTS_PARTITION_LABEL);
+
+        if (partition_ptr == NULL)
+        {
+            err = ESP_ERR_NOT_FOUND;
+            ESP_LOGE (TAG, "Certificates partition not found!");
+        }
+    }
+
+    // Map the partition into the CPU's space
+    const void *map_ptr = NULL;
+    if (err == ESP_OK)
+    {
+        err = esp_partition_mmap (partition_ptr, 0, partition_ptr->size, ESP_PARTITION_MMAP_DATA, &map_ptr,
+                                  &certs_map_handle);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE (TAG, "MMU failed: %s", esp_err_to_name (err));
+        }
+    }
+
+    const cert_header_t *header_ptr = (const cert_header_t *) map_ptr;
+    if (err == ESP_OK)
+    {
+        // Verify magic bytes
+        if (header_ptr->magic != SYSTEM_CONFIG_MTLS_HEADER_MAGIC)
+        {
+            ESP_LOGE (TAG, "Invalid certificates header magic!");
+            esp_partition_munmap (certs_map_handle);
+            certs_map_handle = 0;
+            err              = ESP_ERR_INVALID_STATE;
+        }
+    }
+
+    if (err == ESP_OK)
+    {
+        // Calculate CRC offset
+        uint32_t unpadded_payload_size = header_ptr->ca_offset + header_ptr->ca_length;
+        uint32_t total_current_length  = unpadded_payload_size + sizeof (uint16_t);
+        uint32_t padding_size          = (32 - (total_current_length % 32)) % 32;
+        uint32_t crc_offset            = unpadded_payload_size + padding_size;
+
+        // Read stored CRC
+        uint16_t stored_crc;
+        memcpy (&stored_crc, (const uint8_t *) map_ptr + crc_offset, sizeof (uint16_t));
+
+        uint16_t calculated_crc = calculate_modbus_crc16 ((const uint8_t *) map_ptr, crc_offset);
+
+        if (calculated_crc != stored_crc)
+        {
+            ESP_LOGE (TAG, "CRC verification failed! calculated: %04" PRIX16 ", Expected: %04" PRIX16,
+                      calculated_crc, stored_crc);
+            err = ESP_ERR_INVALID_CRC;
+        }
+    }
+
+    if (err == ESP_OK)
+    {
+        // MQTT client configuration
+        global_config.mqtt.client_config.credentials.authentication.certificate =
+            (const char *) (map_ptr + header_ptr->cli_offset);
+        global_config.mqtt.client_config.credentials.authentication.key =
+            (const char *) (map_ptr + header_ptr->key_offset);
+        global_config.mqtt.client_config.credentials.authentication.certificate_len = header_ptr->cli_length;
+        global_config.mqtt.client_config.credentials.authentication.key_len         = header_ptr->key_length;
+
+        // MQTT broker configuration
+        global_config.mqtt.client_config.broker.verification.certificate =
+            (const char *) (map_ptr + header_ptr->ca_offset);
+        global_config.mqtt.client_config.broker.verification.certificate_len = header_ptr->ca_length;
+
+        ESP_LOGI (TAG, "Loaded certificates successfully.");
+    }
+
+    return err;
+}
+#endif
+
 /**
  * @brief Callback to save parameters to NVS on timer timeout
  *
@@ -96,7 +223,8 @@ static void save_parameters_callback (void *arg_void_ptr)
 esp_err_t system_config_setup_defaults (void)
 {
     esp_err_t err = ESP_OK;
-
+#if CONFIG_WIFI_MODE_USE_MANUAL_SETTING
+    // Use compile-time configurations
     if (err == ESP_OK)
     {
         err = nvs_manager_set_default (NVS_MANAGER_KEYS_WIFI_SSID, SYSTEM_CONFIG_WIFI_SSID,
@@ -108,6 +236,18 @@ esp_err_t system_config_setup_defaults (void)
         err = nvs_manager_set_default (NVS_MANAGER_KEYS_WIFI_PASS, SYSTEM_CONFIG_WIFI_PASSWORD,
                                        sizeof (SYSTEM_CONFIG_WIFI_PASSWORD));
     }
+#else
+    // Set empty as sentinel value
+    if (err == ESP_OK)
+    {
+        err = nvs_manager_set_default (NVS_MANAGER_KEYS_WIFI_SSID, "", 1);
+    }
+
+    if (err == ESP_OK)
+    {
+        err = nvs_manager_set_default (NVS_MANAGER_KEYS_WIFI_PASS, "", 1);
+    }
+#endif
 
     if (err == ESP_OK)
     {
@@ -173,7 +313,46 @@ esp_err_t system_config_setup (void)
     (void) nvs_manager_read_cfg (NVS_MANAGER_KEYS_WIFI_SSID, global_config.wifi.sta.ssid);
     (void) nvs_manager_read_cfg (NVS_MANAGER_KEYS_WIFI_PASS, global_config.wifi.sta.password);
 
-    // Load MQTT Configuration
+    bool needs_provisioning = false;
+#if CONFIG_WIFI_MODE_USE_PROVISIONING
+    // Check if NVS is blank 'sentinel value'. If it is, provision
+    if (strlen ((char *) global_config.wifi.sta.ssid) == 0)
+    {
+        needs_provisioning = true;
+    }
+#else
+    // Else manual setting
+    needs_provisioning = false;
+#endif
+
+    if (needs_provisioning == true)
+    {
+#if CONFIG_WIFI_MODE_USE_PROVISIONING
+        ESP_LOGW (TAG, "Launching BLE provisioner...");
+
+        // Start provisioner
+        err = ble_provisioner_start ();
+        if (err == ESP_OK)
+        {
+
+            // Halt execution, provisioner event loop will catch the incoming events,
+            // commit the keys to NVS, and execute esp_restart().
+            while (true)
+            {
+                vTaskDelay (pdMS_TO_TICKS (1000));
+            }
+        }
+#endif
+    }
+
+#if CONFIG_MQTT_TRANSPORT_SECURE
+    if (err == ESP_OK)
+    {
+        err = system_config_load_mqtt_certs ();
+    }
+#endif
+
+    // Assign MQTT Configuration
     (void) nvs_manager_read_cfg (NVS_MANAGER_KEYS_MQTT_URI, system_config_mqtt_uri);
     (void) nvs_manager_read_cfg (NVS_MANAGER_KEYS_MQTT_USER, system_config_mqtt_user);
     (void) nvs_manager_read_cfg (NVS_MANAGER_KEYS_MQTT_PASS, system_config_mqtt_pass);
@@ -181,10 +360,14 @@ esp_err_t system_config_setup (void)
     global_config.mqtt.client_config.credentials.username                = system_config_mqtt_user;
     global_config.mqtt.client_config.credentials.authentication.password = system_config_mqtt_pass;
 
-    // Timer for saving parameters
-    const esp_timer_create_args_t timer_args = {.callback = save_parameters_callback,
-                                                .name     = "save_param_timer"};
-    err                                      = esp_timer_create (&timer_args, &save_param_timer_handle);
+    if (err == ESP_OK)
+    {
+        // Timer for saving parameters
+        const esp_timer_create_args_t timer_args = {.callback = save_parameters_callback,
+                                                    .name     = "save_param_timer"};
+        err                                      = esp_timer_create (&timer_args, &save_param_timer_handle);
+    }
+
     if (err == ESP_OK)
     {
         // Start periodic sync
@@ -241,4 +424,21 @@ void system_config_reset (void)
         (void) esp_timer_delete (save_param_timer_handle);
         save_param_timer_handle = NULL;
     }
+#if CONFIG_MQTT_TRANSPORT_SECURE
+    if (certs_map_handle != 0)
+    {
+        // Un-map mapped memory
+        esp_partition_munmap (certs_map_handle);
+        certs_map_handle = 0;
+        // MQTT client configuration
+        global_config.mqtt.client_config.credentials.authentication.certificate     = NULL;
+        global_config.mqtt.client_config.credentials.authentication.key             = NULL;
+        global_config.mqtt.client_config.credentials.authentication.certificate_len = 0;
+        global_config.mqtt.client_config.credentials.authentication.key_len         = 0;
+
+        // MQTT broker configuration
+        global_config.mqtt.client_config.broker.verification.certificate     = NULL;
+        global_config.mqtt.client_config.broker.verification.certificate_len = 0;
+    }
+#endif
 }
